@@ -40,18 +40,40 @@ AutoAreaLoot automatically loots nearby corpses when it is safe to do so.
 - Automatically uses a built-in pfUI theme when pfUI is loaded
 - Slash commands can still enable, disable, or report the addon status
 
-## API requirement
+## Requirements
 
-AutoAreaLoot requires the `C_Loot.LootAllCorpses` function provided by the ClassicAPI DLL. It checks for that function at runtime and displays a chat message if it is unavailable.
+AutoAreaLoot needs the **ClassicAPI** client mod. Without it the addon loads but
+never loots, and it prints "AutoAreaLoot requires the ClassicAPI DLL" in chat
+on login.
 
-Nampower is optional. When its `UNIT_DIED` event is available, the addon uses it; otherwise it falls back to `CHAT_MSG_COMBAT_HOSTILE_DEATH`.
+ClassicAPI backports the modern `C_Loot` API (used to scan and loot nearby
+corpses), `C_Timer`, `UnitPosition`, `UnitDistanceSquared`, `GetUnitSpeed` and
+most of Lua 5.1 into the 1.12 client. AutoAreaLoot relies on all of these.
+
+### Installing ClassicAPI
+
+1. Download `ClassicAPI.dll` from the releases page of
+   <https://github.com/brues-code/ClassicAPI>. The same project is mirrored on
+   the OctoWoW Gitea at <https://octowow.st/git/brues/ClassicAPI>. If your
+   launcher lists ClassicAPI under its Mods tab, installing it from there is
+   the simplest route and does the steps below for you.
+2. Copy `ClassicAPI.dll` into your game folder, next to `WoW.exe`.
+3. Open `dlls.txt` in the game folder (create it if it does not exist) and add
+   a line containing `ClassicAPI.dll`. VanillaFixes reads this file and injects
+   every listed DLL when the game starts.
+4. Start the game through your normal launcher. On login the warning message
+   should no longer appear, and `/aal status` should report the addon enabled.
+
+Nampower is optional. When its `UNIT_DIED` event is available, the addon uses
+it; otherwise it falls back to `CHAT_MSG_COMBAT_HOSTILE_DEATH`. SuperWoW is
+compatible but not required.
 
 ## Installation
 
 In the launcher, choose **Add Addon from Git** and use:
 
 ```text
-https://github.com/Foulwerp/AutoAreaLoot.git
+https://github.com/octo-addons/AutoAreaLoot.git
 ```
 
 The addon should be installed as:
@@ -59,6 +81,9 @@ The addon should be installed as:
 ```text
 Interface/AddOns/AutoAreaLoot
 ```
+
+A newly added addon is only detected when the client starts, so restart the
+game rather than using `/reload` the first time.
 
 ## Commands
 
@@ -76,3 +101,9 @@ Typing `/aal` without an argument opens or closes the settings panel.
 The debug window records precise trigger, scheduling, ClassicAPI scan, and loot
 confirmation steps. Choose **Select All** to pause capture and select the trace,
 then press `Ctrl+C` to copy a report.
+
+## Credits
+
+Based on the original AutoAreaLoot by Foulwerp
+(<https://github.com/Foulwerp/AutoAreaLoot>). This fork adds Lua 5.0
+compatibility fixes and the ClassicAPI setup guide above.
