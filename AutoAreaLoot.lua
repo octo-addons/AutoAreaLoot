@@ -1,3 +1,17 @@
+-- Lua 5.0 (WoW 1.12) has no string.match; emulate it with string.find.
+local function StringMatch(text, pattern, init)
+    local results = { string.find(text, pattern, init) }
+    if results[1] == nil then return nil end
+    if table.getn(results) > 2 then
+        local captures = {}
+        for i = 3, table.getn(results) do
+            captures[i - 2] = results[i]
+        end
+        return unpack(captures)
+    end
+    return string.sub(text, results[1], results[2])
+end
+
 local LOOT_REQUEST_DELAY = 0.10
 local DEATH_LOOT_REQUEST_DELAY = 0.25
 local POST_SCAN_SETTLE_MIN = 0.35
@@ -993,7 +1007,7 @@ end
 
 local function ReadLootCaptures(message, pattern, captureTypes)
     if not pattern or not captureTypes then return nil end
-    local first, second = string.match(message, pattern)
+    local first, second = StringMatch(message, pattern)
     if first == nil then return nil end
 
     local itemText
@@ -1014,7 +1028,7 @@ local function ParseSelfLootMessage(message)
     end
     if not itemText then return nil end
 
-    local itemIDText = string.match(itemText, "item:(%d+)")
+    local itemIDText = StringMatch(itemText, "item:(%d+)")
     local itemID = itemIDText and tonumber(itemIDText) or nil
     if not itemID then return nil end
     return {
@@ -1061,7 +1075,7 @@ local function ConsumeItemConfirmation(capture, confirmation)
     if remaining <= 0 then return false, confirmation.count end
 
     local confirmed = math.min(remaining, confirmation.count)
-    local key = string.match(confirmation.label, "|H(item:[^|]+)|h")
+    local key = StringMatch(confirmation.label, "|H(item:[^|]+)|h")
         or confirmation.itemID
     AddLootItem(confirmation.label, key, confirmed)
     capture.expectedItems[confirmation.itemID] = remaining - confirmed
@@ -2493,7 +2507,7 @@ end)
 SLASH_AUTOAREA_LOOT1 = "/aal"
 SlashCmdList["AUTOAREA_LOOT"] = function(message)
     if not state.initialized then return end
-    local command = string.lower(string.match(message or "", "^%s*(.-)%s*$"))
+    local command = string.lower(StringMatch(message or "", "^%s*(.-)%s*$"))
 
     if command == "on" then
         SetEnabled(true)
