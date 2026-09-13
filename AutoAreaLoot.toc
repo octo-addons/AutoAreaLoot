@@ -2,7 +2,7 @@
 ## Title: AutoAreaLoot
 ## Notes: Event-driven automatic nearby-corpse looting.
 ## OptionalDeps: NampowerSettings, pfUI
-## Version: 1.1.0
+## Version: 1.1.1
 ## SavedVariables: AutoAreaLootDB
 
 AutoAreaLoot.lua

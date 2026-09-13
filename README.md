@@ -107,3 +107,17 @@ then press `Ctrl+C` to copy a report.
 Based on the original AutoAreaLoot by Foulwerp
 (<https://github.com/Foulwerp/AutoAreaLoot>). This fork adds Lua 5.0
 compatibility fixes and the ClassicAPI setup guide above.
+
+## Changelog
+
+### 1.1.1 (octo-addons fork)
+
+- Fix a crash on clients without Lua 5.1 support: `string.match` is replaced
+  by a `string.find` based helper, so the `/aal` command and loot message
+  parsing work on a stock 1.12 Lua runtime.
+- Document that ClassicAPI is required and how to install it.
+- Install URL points at the octo-addons repository.
+
+### 1.1.0 and earlier
+
+See the [original project](https://github.com/Foulwerp/AutoAreaLoot).
