@@ -8,6 +8,12 @@ AutoAreaLoot automatically loots nearby corpses when it is safe to do so.
 - Ignores Nampower death events whose units are clearly beyond loot range
 - Individually configurable death and movement-stop triggers
 - Optional in-combat looting, enabled by default
+- Pauses while you are fighting: with a living enemy targeted in combat, loot
+  walks are held back, because walking corpses pulls your target off the mob.
+  The queued loot pass runs as soon as your target dies, you clear it, or
+  combat ends. If a walk still moves your target, it is put back afterwards
+  (needs SuperWoW). Toggle with the "Pause while fighting a live target"
+  checkbox
 - Coalesces blocked triggers into one pending loot pass
 - Runs one final pass after combat when a combat-time trigger occurred
 - Avoids interrupting manual loot windows
@@ -109,6 +115,13 @@ Based on the original AutoAreaLoot by Foulwerp
 compatibility fixes and the ClassicAPI setup guide above.
 
 ## Changelog
+
+### 1.1.2
+
+- Loot walks no longer start while you have a living enemy targeted in combat,
+  so your target is not switched mid-fight. The deferred pass runs when the
+  target dies or is cleared, or when combat ends. The previous target is
+  restored if a walk moved it.
 
 ### 1.1.1 (octo-addons fork)
 

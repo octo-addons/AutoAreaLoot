@@ -45,6 +45,9 @@ local defaults = {
     lootOnDeath = true,
     lootOnStop = true,
     lootInCombat = true,
+    -- Hold loot walks while a living enemy is targeted in combat: the walk
+    -- interacts with corpses and would pull the target off the mob.
+    pauseWhileFighting = true,
     lootCombine = false,
     openLootLogOnLogin = false,
     lootLogWidth = 280,
@@ -1510,6 +1513,27 @@ local function IsPlayerInCombat()
     return type(UnitAffectingCombat) == "function" and UnitAffectingCombat("player")
 end
 
+-- True while the player is in combat with a living, attackable target.
+local function IsPlayerFighting()
+    if not IsPlayerInCombat() then return false end
+    if not UnitExists("target") then return false end
+    if UnitIsDead("target") then return false end
+    return UnitCanAttack("player", "target") and true or false
+end
+
+-- GUID of the current target when it is a living enemy, else nil.
+local function GetLiveEnemyTargetGuid()
+    if not UnitExists("target") or UnitIsDead("target")
+        or not UnitCanAttack("player", "target") then
+        return nil
+    end
+    local _, guid = UnitExists("target")          -- SuperWoW
+    if type(guid) ~= "string" and type(UnitGUID) == "function" then
+        guid = UnitGUID("target")                 -- ClassicAPI
+    end
+    return type(guid) == "string" and guid or nil
+end
+
 local function IsPlayerChanneling()
     if type(UnitChannelInfo) ~= "function" then return false end
     local ok, channelName = pcall(UnitChannelInfo, "player")
@@ -1713,6 +1737,12 @@ local function LootNearbyCorpses(source)
         return false
     end
 
+    if AutoAreaLootDB.pauseWhileFighting and IsPlayerFighting() then
+        QueuePendingLootRequest(source)
+        DebugLog("Loot request deferred: fighting a living target")
+        return false
+    end
+
     if state.manualLootOpen then
         QueuePendingLootRequest(source)
         DebugLog("Loot request deferred: manual loot window is open")
@@ -1777,6 +1807,7 @@ local function LootNearbyCorpses(source)
     state.activeCapture = capture
     state.lootWalkActive = true
     state.lootWalkStartedAt = type(GetTime) == "function" and GetTime() or nil
+    state.walkTargetGuid = GetLiveEnemyTargetGuid()
     DebugLog("Calling C_Loot.LootAllCorpses")
     local callOK, callResult = pcall(C_Loot.LootAllCorpses)
     local started = callOK and callResult and true or false
@@ -1930,6 +1961,19 @@ CompleteActiveLootWalk = function()
         return false
     end
 
+    -- Safety net: if the walk pulled the target off a living enemy, put it
+    -- back. Needs GUID unit ids (SuperWoW).
+    local wantedGuid = state.walkTargetGuid
+    state.walkTargetGuid = nil
+    if wantedGuid and SUPERWOW_VERSION and UnitExists(wantedGuid)
+        and not UnitIsDead(wantedGuid) then
+        local _, currentGuid = UnitExists("target")
+        if currentGuid ~= wantedGuid then
+            TargetUnit(wantedGuid)
+            DebugLog("Restored target after loot walk")
+        end
+    end
+
     local capture = state.activeCapture
     local completedAt = type(GetTime) == "function" and GetTime() or nil
     local scanDuration
@@ -2079,6 +2123,7 @@ local function RefreshConfigPanel()
     configFrame.deathCheck:SetChecked(AutoAreaLootDB.lootOnDeath)
     configFrame.stopCheck:SetChecked(AutoAreaLootDB.lootOnStop)
     configFrame.combatCheck:SetChecked(AutoAreaLootDB.lootInCombat)
+    configFrame.fightCheck:SetChecked(AutoAreaLootDB.pauseWhileFighting)
     configFrame.openLogCheck:SetChecked(AutoAreaLootDB.openLootLogOnLogin)
 end
 
@@ -2087,7 +2132,7 @@ local function CreateConfigPanel()
 
     configFrame = CreateFrame("Frame", "AutoAreaLootConfigFrame", UIParent)
     configFrame:SetWidth(260)
-    configFrame:SetHeight(186)
+    configFrame:SetHeight(210)
     configFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
     configFrame:SetFrameStrata("DIALOG")
     configFrame:SetToplevel(true)
@@ -2139,8 +2184,10 @@ local function CreateConfigPanel()
         configFrame, "Loot on movement stop", -92, "lootOnStop")
     configFrame.combatCheck = CreateCheckButton(
         configFrame, "Allow looting in combat", -116, "lootInCombat")
+    configFrame.fightCheck = CreateCheckButton(
+        configFrame, "Pause while fighting a live target", -140, "pauseWhileFighting")
     configFrame.openLogCheck = CreateCheckButton(
-        configFrame, "Open loot log on login/reload", -140, "openLootLogOnLogin")
+        configFrame, "Open loot log on login/reload", -164, "openLootLogOnLogin")
 
     local logButton = CreateAALButton(configFrame, 118, 18, "Open Loot Log")
     logButton:SetPoint("BOTTOM", configFrame, "BOTTOM", 0, 7)
@@ -2232,6 +2279,7 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 eventFrame:RegisterEvent("CHAT_MSG_LOOT")
 eventFrame:RegisterEvent("PLAYER_MONEY")
+eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 if IsEventAvailable("LOOT_SCAN_COMPLETED") then
     eventFrame:RegisterEvent("LOOT_SCAN_COMPLETED")
 end
@@ -2304,6 +2352,15 @@ eventFrame:SetScript("OnEvent", function()
         state.activeCapture = nil
         state.pendingCaptures = {}
         state.moneyBaseline = nil
+        return
+    end
+
+    if event == "PLAYER_TARGET_CHANGED" then
+        if state.pendingLootReason and AutoAreaLootDB.pauseWhileFighting
+            and not IsPlayerFighting() then
+            DebugLog("Target cleared or dead: servicing deferred loot request")
+            ServicePendingLootRequest()
+        end
         return
     end
 
@@ -2523,6 +2580,7 @@ SlashCmdList["AUTOAREA_LOOT"] = function(message)
             .. "; death trigger " .. (AutoAreaLootDB.lootOnDeath and "on" or "off")
             .. "; stop trigger " .. (AutoAreaLootDB.lootOnStop and "on" or "off")
             .. "; combat looting " .. (AutoAreaLootDB.lootInCombat and "on" or "off")
+            .. "; pause while fighting " .. (AutoAreaLootDB.pauseWhileFighting and "on" or "off")
             .. ".")
     elseif command == "log" then
         ShowLootLog()
